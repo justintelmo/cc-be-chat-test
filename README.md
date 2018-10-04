@@ -1,1 +1,10 @@
-run `node index.js` in terminal to run the chat client
+To run server:
+
+```
+cd server/
+npm install
+node index.js
+```
+
+To run client:
+Point your browser at the client/index.html file.
