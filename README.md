@@ -31,6 +31,8 @@ ava
 sinon
 ```
 
+ws was given as the only socket package I could use. MongoDB and Mongoose were used for their flexibility and ease of implementation. The redis-node package was used simply to implement the caching solution that would give us a much better time per query. The fs package was used for parsing the banned_words.txt file inside of the `server` directory. Finally, Ava and Sinon were used as packages for the testing suite I was working on. Sinon was originally used for mocking, but I could not figure out how to get it to work with this in time.
+
 I implemented this chat room using the ws package. I utilized the ws package to send a payload containing an object of schema:
 
 ```
