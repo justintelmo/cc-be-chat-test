@@ -1,6 +1,6 @@
 "use strict";
-const messageHistoryMax = 50;
-
+const MESSAGE_HISTORY_MAX = 50;
+const REDIS_MESSAGE_CACHE_NAME = "message_history";
 const WebSocket = require('ws');
 const server = new WebSocket.Server({
         port: 12345,
@@ -21,9 +21,10 @@ function broadcast (data) {
 }
 
 function showMessageHistory(ws) {
-    redis.smembers("message_history", (err, reply) => {
+    redis.lrange(REDIS_MESSAGE_CACHE_NAME, 0, MESSAGE_HISTORY_MAX, (err, reply) => {
         if (err) {
             console.log("Error: ", err);
+            // Delegate to Mongo to retrieve history, if for some reason we can't retrieve from Redis
             showMessageHistoryMongo(ws);
         } else {
             reply.reverse().forEach((message) => {
@@ -33,6 +34,7 @@ function showMessageHistory(ws) {
     })
 }
 
+// In an ideal world, this would rarely get called as our Redis instance would be always up.
 function showMessageHistoryMongo(ws) {
     mongoClient.connect(mongoUrl, {useNewUrlParser: true}, (err, db) => {
         if (err) {
@@ -44,7 +46,7 @@ function showMessageHistoryMongo(ws) {
                     console.log("Error when showing message history: ", err);
                 }
                 // What's really nice about this is that it returns messages in reverse chronological order.
-                let messageHistory = collection.find().skip(collection.countDocuments() - messageHistoryMax);
+                let messageHistory = collection.find().skip(collection.countDocuments() - MESSAGE_HISTORY_MAX);
                 messageHistory.forEach((message) => {
                     ws.send(JSON.stringify(message));
                 })
@@ -69,8 +71,12 @@ function insertToMongoDB(data) {
             })
         })
     });
-    redis.sadd("message_history", JSON.stringify(data));
 };
+
+function insertToRedisCache(data) {
+    redis.lpush(REDIS_MESSAGE_CACHE_NAME, JSON.stringify(data));
+    redis.ltrim(REDIS_MESSAGE_CACHE_NAME, 0, MESSAGE_HISTORY_MAX)
+}
 
 
 server.on('connection', ws => {
@@ -84,6 +90,7 @@ server.on('connection', ws => {
         } else {
             let badWords = stringUtils.getBadWords();
             data.msg = stringUtils.sanitizeMessage(data.msg, new RegExp("/\b" + badWords.join("|") + "/\b", "gi"));
+            insertToRedisCache(data);
             insertToMongoDB(data);
         }
         broadcast(data);
